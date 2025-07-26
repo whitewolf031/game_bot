@@ -147,7 +147,7 @@ def chess_game(msg):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(
         text="♟ O‘yinni ochish",
-        web_app=WebAppInfo(url="https://yourname.github.io/chess.html")  # ✅ TO‘G‘RI LINK
+        web_app=WebAppInfo(url="https://whitewolf031.github.io/game_bot/chess.html")  # ✅ TO‘G‘RI LINK
     ))
     bot.send_message(msg.chat.id, "Shaxmatni boshlash uchun bosing:", reply_markup=markup)
 
