@@ -2,37 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Shaxmat o'yini</title>
+  <title>Shaxmat o‘yini</title>
 
   <!-- Telegram WebApp JS -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- Shaxmat kutubxonalari -->
+  <!-- CSS va JavaScript kutubxonalar -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard.js/1.0.0/css/chessboard.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard.js/1.0.0/js/chessboard.min.js"></script>
 
   <style>
     body {
       background-color: #1e1e1e;
-      color: white;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding-top: 20px;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
     }
 
     #board {
-      width: 90vw;
+      width: 100%;
       max-width: 400px;
+      margin: auto;
     }
 
     button {
-      margin-top: 20px;
+      margin-top: 15px;
       padding: 10px 20px;
       font-size: 16px;
-      background-color: #4CAF50;
+      background-color: #28a745;
       border: none;
       color: white;
       border-radius: 8px;
@@ -40,11 +40,12 @@
     }
 
     button:hover {
-      background-color: #45a049;
+      background-color: #218838;
     }
 
-    h2 {
-      margin-bottom: 10px;
+    #status {
+      margin-top: 10px;
+      font-size: 18px;
     }
   </style>
 </head>
@@ -52,15 +53,13 @@
 
   <h2>♟ Shaxmat o‘yini</h2>
   <div id="board"></div>
-
-  <button onclick="resetGame()">🔄 O‘yinni qayta boshlash</button>
+  <div id="status"></div>
+  <button onclick="resetGame()">🔄 Qayta boshlash</button>
 
   <script>
-    // Telegram WebApp ni tayyor holatga keltiramiz
     Telegram.WebApp.ready();
 
     const game = new Chess();
-
     const board = Chessboard('board', {
       draggable: true,
       position: 'start',
@@ -68,18 +67,39 @@
         const move = game.move({
           from: source,
           to: target,
-          promotion: 'q' // har doim farzandni qirolichaga aylantirish
+          promotion: 'q' // doimiy ravishda qirolichaga aylantirish
         });
 
         if (move === null) return 'snapback';
+        updateStatus();
       }
     });
 
     function resetGame() {
       game.reset();
       board.start();
+      updateStatus();
     }
-  </script>
 
+    function updateStatus() {
+      let status = '';
+      let moveColor = game.turn() === 'b' ? 'Qora' : 'Oq';
+
+      if (game.in_checkmate()) {
+        status = 'Uyun tugadi, ' + moveColor + ' yutqazdi!';
+      } else if (game.in_draw()) {
+        status = 'Durrang!';
+      } else {
+        status = moveColor + ' navbati yurish uchun';
+        if (game.in_check()) {
+          status += ' — Shax!';
+        }
+      }
+
+      document.getElementById('status').innerText = status;
+    }
+
+    updateStatus();
+  </script>
 </body>
 </html>
