@@ -38,5 +38,7 @@ def games():
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn_chess = types.KeyboardButton("Shaxmat")
     btn_shashka = types.KeyboardButton("Shashka")
+    btn_back = types.KeyboardButton("Orqaga")
     keyboard.row(btn_chess, btn_shashka)
+    keyboard.row(btn_back)
     return keyboard

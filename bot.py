@@ -105,6 +105,7 @@ def main_menu(message):
 
     if message.text == "O'yinlar":
         bot.send_message(chat_id, "O'yin tanlang", reply_markup=games())
+        bot.register_next_step_handler(message, back_game)
 
 
     if message.text == "Do'stlarni taklif qilish":
@@ -152,5 +153,10 @@ def chess_game(msg):
     bot.send_message(msg.chat.id, "Shaxmatni boshlash uchun bosing:", reply_markup=markup)
 
 
+def back_game(message):
+    chat_id = message.chat.id
+    if message.text == "Orqaga":
+        bot.send_message(chat_id, "Bosh menu ga qaytingiz bo'limlardan birini tanlang", reply_markup=menu_keyboards())
+        bot.register_next_step_handler(message, main_menu)
 
 bot.polling(non_stop=True)
