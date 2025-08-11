@@ -119,7 +119,6 @@ def main_menu(message):
 
     if message.text == "Darajalar":
             bot.send_photo(chat_id, photo=open("daraja_photo/photo_2025-08-08_21-56-34.jpg", "rb"), caption=
-                       "<b>📋 Martaba tizimi</b>\n\n"
         "🔘 <b>Bronze</b>         0 – 999                     🔶 Boshlovchi\n"
         "⚪ <b>Silver</b>         1,000 – 9,999               🥈 Faol ishtirokchi\n"
         "🟡 <b>Gold</b>           10,000 – 49,999             🥇 Bot yetakchisi\n"
