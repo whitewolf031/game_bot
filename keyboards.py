@@ -26,11 +26,13 @@ def menu_keyboards():
     btn_offer = types.KeyboardButton("Do'stlarni taklif qilish")
     btn_conditions = types.KeyboardButton("Shartlar")
     btn_check = types.KeyboardButton("Ma'lumotlarni ko‘rish")
+    btn_darajalar = types.KeyboardButton("Darajalar")
     btn_back = types.KeyboardButton("Orqaga")
 
     keyboard.row(btn_ball, btn_game)
     keyboard.row(btn_offer, btn_conditions)
     keyboard.row(btn_check)
+    keyboard.row(btn_darajalar)
     keyboard.row(btn_back)
     return keyboard
 

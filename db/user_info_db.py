@@ -7,7 +7,7 @@ class User_info:
         self.connect = psycopg2.connect(
             host="localhost",
             user="postgres",
-            password="123456",
+            password="Jahongir2004#",
             database="choice_info"
         )
         self.cursor = self.connect.cursor()

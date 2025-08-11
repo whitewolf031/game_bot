@@ -117,6 +117,15 @@ def main_menu(message):
     if message.text == "Ma'lumotlarni ko‘rish":
         bot.send_message(chat_id, "Sizning ma'lumotlaringiz")
 
+    if message.text == "Darajalar":
+            bot.send_photo(chat_id, photo=open("daraja_photo/photo_2025-08-08_21-56-34.jpg", "rb"), caption=
+        "🔘 <b>Bronze</b>         0 – 999                     🔶 Boshlovchi\n"
+        "⚪ <b>Silver</b>         1,000 – 9,999               🥈 Faol ishtirokchi\n"
+        "🟡 <b>Gold</b>           10,000 – 49,999             🥇 Bot yetakchisi\n"
+        "🔴 <b>Karona</b>        50,000 – 99,999             👑 Ustoz o‘yinchi\n"
+        "🟣 <b>Legend</b>        100,000 – 499,999           🌟 Afsonaviy foydalanuvchi\n"
+        "🔵 <b>Mythic</b>        500,000+                          🔥 Elita\n" ,
+        parse_mode = "HTML")
     elif message.text == "Orqaga":
         bot.send_message(chat_id, "Assalomu aleykum yutib ol botimizga xush kelibsiz. Tilni tanlang!", reply_markup=generate_language())
 
