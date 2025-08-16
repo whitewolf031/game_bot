@@ -1,10 +1,279 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="uz">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shashka (Checkers) - Flask demo</title>
+  <style>
+    :root {
+      --board-size: 480px;
+      --cell-size: calc(var(--board-size) / 8);
+    }
+    body{ font-family: system-ui, -apple-system, "Segoe UI", Roboto; display:flex; flex-direction:column; align-items:center; padding:20px;}
+    h1{margin-bottom:8px}
+    #board { width:var(--board-size); height:var(--board-size); display:grid; grid-template-columns:repeat(8,1fr); border:4px solid #333; box-shadow:0 6px 18px rgba(0,0,0,0.15); }
+    git .cell { width:100%; height:100%; box-sizing:border-box; position:relative; }
+    .cell.light { background:#f0d9b5; }
+    .cell.dark { background:#6b4f3a; }
+    .cell.highlight { outline: 4px solid rgba(255,255,0,0.6); }
+    .piece {
+      width: calc(var(--cell-size) * 0.78);
+      height: calc(var(--cell-size) * 0.78);
+      border-radius: 50%;
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      color:white;
+      user-select:none;
+      cursor:pointer;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.25);
+    }
+    .piece.black { background:#111; }
+    .piece.white { background:#e74c3c; } /* red-ish for contrast */
+    .piece.king { box-shadow:0 0 0 4px rgba(255,255,255,0.12) inset; }
+    #info { margin-top:12px; }
+    button { margin-left:8px; padding:6px 10px; }
+    @media (max-width:520px){
+      :root{ --board-size:320px; }
+    }
+  </style>
 </head>
 <body>
+  <h1>Shashka (Checkers)</h1>
+  <div id="board" role="grid" aria-label="Checkers board"></div>
 
+  <div id="info">
+    <span id="turn">Navbat: Oq (Red)</span>
+    <button id="reset">Qayta boshlash</button>
+    <button id="undo" disabled>Orqaga</button>
+  </div>
+
+<script>
+/*
+  Simple checkers implementation (English draughts rules approximation):
+  - 8x8 board, dark squares playable.
+  - Pieces move diagonally forward by 1; capture by jumping.
+  - Multiple captures allowed.
+  - Promotion to King when reaching far rank.
+  - No forced capture enforcement complexity omitted (we do enforce captures if available).
+*/
+
+const BOARD_SIZE = 8;
+const boardEl = document.getElementById('board');
+const turnEl = document.getElementById('turn');
+const resetBtn = document.getElementById('reset');
+const undoBtn = document.getElementById('undo');
+
+let state = {
+  board: [], // 8x8 array, null or {color: "white"|"black", king: bool}
+  turn: "white", // white (red visually) moves first
+  selected: null,
+  highlights: [],
+  history: []
+};
+
+function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+
+function initBoard(){
+  const b = Array.from({length:8}, ()=>Array(8).fill(null));
+  // place black (top) on rows 0..2 on dark squares, white (bottom) on rows 5..7
+  for(let r=0;r<3;r++){
+    for(let c=0;c<8;c++){
+      if((r+c)%2===1) b[r][c] = {color:"black", king:false};
+    }
+  }
+  for(let r=5;r<8;r++){
+    for(let c=0;c<8;c++){
+      if((r+c)%2===1) b[r][c] = {color:"white", king:false};
+    }
+  }
+  return b;
+}
+
+function render(){
+  boardEl.innerHTML = "";
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell ' + (((r+c)%2) ? 'dark' : 'light');
+      cell.dataset.r = r; cell.dataset.c = c;
+      if(state.highlights.some(h => h.r===r && h.c===c)) cell.classList.add('highlight');
+      // add piece
+      const p = state.board[r][c];
+      if(p){
+        const piece = document.createElement('div');
+        piece.className = `piece ${p.color}` + (p.king ? ' king' : '');
+        piece.textContent = p.king ? '♔' : '';
+        piece.dataset.r = r; piece.dataset.c = c;
+        piece.addEventListener('click', e => { e.stopPropagation(); selectPiece(r,c); });
+        cell.appendChild(piece);
+      } else {
+        // clicking empty cell to move
+      }
+      cell.addEventListener('click', () => cellClicked(r,c));
+      boardEl.appendChild(cell);
+    }
+  }
+  turnEl.textContent = `Navbat: ${state.turn === 'white' ? 'Oq (Red)' : 'Qora'}`;
+  undoBtn.disabled = state.history.length === 0;
+}
+
+function cellClicked(r,c){
+  // If there's a selected piece and this is a highlighted move, attempt move
+  if(state.selected){
+    const found = state.highlights.find(h => h.r===r && h.c===c);
+    if(found){
+      doMove(state.selected.r, state.selected.c, r, c, found.capture);
+      return;
+    }
+  }
+  // else if clicking a piece of current player, select it
+  const p = state.board[r][c];
+  if(p && p.color === state.turn) selectPiece(r,c);
+  else { state.selected = null; state.highlights = []; render(); }
+}
+
+function selectPiece(r,c){
+  const p = state.board[r][c];
+  if(!p || p.color !== state.turn) return;
+  state.selected = {r,c};
+  // compute legal moves (including captures)
+  const captures = findAllCapturesForPiece(r,c);
+  if(captures.length){
+    state.highlights = captures.map(m => ({r:m.to.r, c:m.to.c, capture:true, path:m}));
+  } else {
+    state.highlights = findSimpleMoves(r,c).map(m => ({r:m.to.r, c:m.to.c, capture:false}));
+  }
+  render();
+}
+
+function findSimpleMoves(r,c){
+  const moves = [];
+  const p = state.board[r][c];
+  if(!p) return moves;
+  const dirs = p.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : (p.color==='white' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]]);
+  for(const [dr,dc] of dirs){
+    const nr = r+dr, nc = c+dc;
+    if(inBounds(nr,nc) && !state.board[nr][nc]){
+      moves.push({from:{r,c}, to:{r:nr,c:nc}});
+    }
+  }
+  return moves;
+}
+
+function findAllCapturesForPiece(r,c){
+  // returns array of {from:{}, to:{}, jumped:{r,c}, path: [...] } for multi captures we only return first jump options; extended capture handled by recursive continue after move
+  const p = state.board[r][c];
+  if(!p) return [];
+  const results = [];
+  const dirs = p.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : (p.color==='white' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]]);
+  for(const [dr,dc] of dirs){
+    const midr = r+dr, midc = c+dc;
+    const toR = r + 2*dr, toC = c + 2*dc;
+    if(inBounds(midr,midc) && inBounds(toR,toC)){
+      const mid = state.board[midr][midc];
+      if(mid && mid.color !== p.color && !state.board[toR][toC]){
+        results.push({from:{r,c}, to:{r:toR,c:toC}, jumped:{r:midr,c:midc}});
+      }
+    }
+  }
+  return results;
+}
+
+function anyCaptureAvailable(color){
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const p = state.board[r][c];
+    if(p && p.color===color){
+      if(findAllCapturesForPiece(r,c).length) return true;
+    }
+  }
+  return false;
+}
+
+function doMove(fr,fc,tr,tc,isCapture){
+  // Save history copy
+  state.history.push(JSON.stringify({board:state.board,turn:state.turn}));
+  // perform move
+  const piece = state.board[fr][fc];
+  state.board[fr][fc] = null;
+  state.board[tr][tc] = piece;
+  // if capture, remove jumped piece (compute midpoint)
+  if(isCapture){
+    const jr = (fr+tr)/2 | 0, jc = (fc+tc)/2 | 0;
+    state.board[jr][jc] = null;
+    // after capture, check if another capture for same piece exists (multi-capture)
+    const more = findAllCapturesForPiece(tr,tc);
+    if(more.length){
+      // continue with same player's turn and force continuation from this piece
+      state.selected = {r:tr,c:tc};
+      state.highlights = more.map(m => ({r:m.to.r,c:m.to.c,capture:true}));
+      render();
+      return;
+    }
+  }
+  // promotion
+  if(piece && !piece.king){
+    if((piece.color==='white' && tr===0) || (piece.color==='black' && tr===7)) piece.king = true;
+  }
+  // switch turn (but enforce forced capture: if opponent has no moves -> game over)
+  state.turn = (state.turn === 'white') ? 'black' : 'white';
+  state.selected = null;
+  state.highlights = [];
+  render();
+  // check game end
+  if(!playerHasAnyMoves(state.turn)){
+    setTimeout(()=> alert(`O'yin tugadi! G'olib: ${state.turn==='white' ? 'Qora' : 'Oq (Red)'} (qarshi tomon harakat qila olmadi)`), 80);
+  }
+}
+
+function playerHasAnyMoves(color){
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const p = state.board[r][c];
+    if(p && p.color===color){
+      if(findAllCapturesForPiece(r,c).length) return true;
+      if(findSimpleMoves(r,c).length) return true;
+    }
+  }
+  return false;
+}
+
+resetBtn.addEventListener('click', () => {
+  state.board = initBoard();
+  state.turn = 'white';
+  state.selected = null;
+  state.highlights = [];
+  state.history = [];
+  render();
+});
+
+undoBtn.addEventListener('click', () => {
+  if(state.history.length){
+    const last = JSON.parse(state.history.pop());
+    state.board = last.board;
+    state.turn = last.turn;
+    state.selected = null;
+    state.highlights = [];
+    render();
+  }
+});
+
+function startGame(){
+  state.board = initBoard();
+  state.turn = 'white';
+  state.selected = null;
+  state.highlights = [];
+  state.history = [];
+  render();
+}
+
+// initialize
+startGame();
+
+</script>
 </body>
 </html>

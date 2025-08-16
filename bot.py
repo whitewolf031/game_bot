@@ -157,9 +157,19 @@ def chess_game(msg):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(
         text="♟ O‘yinni ochish",
-        web_app=WebAppInfo(url="https://whitewolf031.github.io/game_bot/chess.html")  # ✅ TO‘G‘RI LINK
+        web_app=WebAppInfo(url="https://github.com/whitewolf031/game_bot/tree/main/web_app")  # ✅ TO‘G‘RI LINK
     ))
     bot.send_message(msg.chat.id, "Shaxmatni boshlash uchun bosing:", reply_markup=markup)
+
+@bot.message_handler(func=lambda msg: msg.text == "Shashka")
+def chess_game(msg):
+    markup1 = InlineKeyboardMarkup()
+    markup1.add(InlineKeyboardButton(
+        text="♟ O‘yinni ochish",
+        web_app=WebAppInfo(url="https://github.com/whitewolf031/game_bot//shashka_game/web_app/shashka.html")  # ✅ TO‘G‘RI LINK
+    ))
+    bot.send_message(msg.chat.id, "Shashkani boshlash uchun bosing:", reply_markup=markup1)
+
 
 
 def back_game(message):
