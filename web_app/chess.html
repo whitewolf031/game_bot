@@ -61,20 +61,38 @@
 
         .controls {
             margin-top: 20px;
+            display: flex;
+            gap: 10px;
         }
 
         button {
             padding: 10px 20px;
-            margin: 0 10px;
             font-size: 16px;
             cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #resign-btn {
+            background-color: #f87171;
+            color: white;
+        }
+
+        #draw-btn {
+            background-color: #60a5fa;
+            color: white;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="game-info">
-        <h2 id="game-status">Chess Game</h2>
-        <p id="current-player">White's turn</p>
+        <h2 id="game-title">Chess Game</h2>
+        <div id="status">Loading game...</div>
     </div>
 
     <div class="chess-board" id="board"></div>
@@ -85,30 +103,59 @@
     </div>
 
     <script>
+        // Get parameters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameId = urlParams.get('game_id');
+        const playerId = urlParams.get('player_id');
+
+        // Telegram bot communication
         const botToken = '6734058764:AAGUJLRLoingzHwOngjfUngliE7k_qiwXGw';
-        const chatId = new URLSearchParams(window.location.search).get('chat_id');
-        const gameId = new URLSearchParams(window.location.search).get('game_id');
-
+        let currentPlayerColor = null;
+        let gameStatus = 'loading';
         let selectedPiece = null;
-        let currentPlayer = 'white';
-        let board = [];
+        let boardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
-        // Initialize the board
-        function initBoard() {
-            board = Array(8).fill(null).map(() => Array(8).fill(null));
+        // Initialize the game
+        async function initGame() {
+            document.getElementById('status').textContent = "Loading game data...";
+
+            try {
+                // In a real implementation, you'd fetch game state from your server
+                // For this example, we'll initialize a new board
+                initializeBoard();
+
+                // Determine player color (in a real app, this would come from the server)
+                // For now, we'll assume player 1 is white, player 2 is black
+                currentPlayerColor = playerId.endsWith('1') ? 'white' : 'black';
+
+                document.getElementById('status').textContent =
+                    `You are playing as ${currentPlayerColor}. ${currentPlayerColor === 'white' ? 'Your turn!' : 'Waiting for opponent...'}`;
+
+                gameStatus = 'active';
+
+            } catch (error) {
+                document.getElementById('status').textContent = "Error loading game: " + error.message;
+                console.error(error);
+            }
+        }
+
+        // Initialize the chess board
+        function initializeBoard() {
+            // Clear the board
+            boardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
             // Set up pawns
             for (let i = 0; i < 8; i++) {
-                board[1][i] = { type: 'pawn', color: 'black' };
-                board[6][i] = { type: 'pawn', color: 'white' };
+                boardState[1][i] = { type: 'pawn', color: 'black' };
+                boardState[6][i] = { type: 'pawn', color: 'white' };
             }
 
             // Set up other pieces
             const pieces = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
 
             for (let i = 0; i < 8; i++) {
-                board[0][i] = { type: pieces[i], color: 'black' };
-                board[7][i] = { type: pieces[i], color: 'white' };
+                boardState[0][i] = { type: pieces[i], color: 'black' };
+                boardState[7][i] = { type: pieces[i], color: 'white' };
             }
 
             renderBoard();
@@ -127,7 +174,7 @@
                     square.dataset.col = col;
 
                     // Add piece if exists
-                    const piece = board[row][col];
+                    const piece = boardState[row][col];
                     if (piece) {
                         square.textContent = getPieceSymbol(piece);
                     }
@@ -141,10 +188,6 @@
                     boardElement.appendChild(square);
                 }
             }
-
-            // Update game status
-            document.getElementById('current-player').textContent =
-                `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}'s turn`;
         }
 
         // Get Unicode symbol for piece
@@ -173,11 +216,13 @@
 
         // Handle square clicks
         function handleSquareClick(row, col) {
-            const piece = board[row][col];
+            if (gameStatus !== 'active') return;
+
+            const piece = boardState[row][col];
 
             // If no piece is selected
             if (!selectedPiece) {
-                if (piece && piece.color === currentPlayer) {
+                if (piece && piece.color === currentPlayerColor) {
                     selectedPiece = { row, col };
                     renderBoard();
                 }
@@ -192,7 +237,7 @@
             }
 
             // If clicking another piece of the same color, select it
-            if (piece && piece.color === currentPlayer) {
+            if (piece && piece.color === currentPlayerColor) {
                 selectedPiece = { row, col };
                 renderBoard();
                 return;
@@ -207,9 +252,9 @@
             }
         }
 
-        // Check if move is valid
+        // Check if move is valid (simplified)
         function isValidMove(fromRow, fromCol, toRow, toCol) {
-            const piece = board[fromRow][fromCol];
+            const piece = boardState[fromRow][fromCol];
             if (!piece) return false;
 
             // Basic movement rules (simplified)
@@ -218,15 +263,15 @@
                 const startRow = piece.color === 'white' ? 6 : 1;
 
                 // Forward move
-                if (fromCol === toCol && !board[toRow][toCol]) {
+                if (fromCol === toCol && !boardState[toRow][toCol]) {
                     if (fromRow + direction === toRow) return true;
-                    if (fromRow === startRow && fromRow + 2*direction === toRow && !board[fromRow + direction][fromCol]) {
+                    if (fromRow === startRow && fromRow + 2*direction === toRow && !boardState[fromRow + direction][fromCol]) {
                         return true;
                     }
                 }
 
                 // Capture
-                if (Math.abs(fromCol - toCol) === 1 && fromRow + direction === toRow && board[toRow][toCol]) {
+                if (Math.abs(fromCol - toCol) === 1 && fromRow + direction === toRow && boardState[toRow][toCol]) {
                     return true;
                 }
             }
@@ -242,72 +287,95 @@
             sendMoveToBot(fromRow, fromCol, toRow, toCol);
 
             // Update local board
-            board[toRow][toCol] = board[fromRow][fromCol];
-            board[fromRow][fromCol] = null;
-
-            // Switch player
-            currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+            boardState[toRow][toCol] = boardState[fromRow][fromCol];
+            boardState[fromRow][fromCol] = null;
 
             selectedPiece = null;
             renderBoard();
+
+            document.getElementById('status').textContent = "Move sent! Waiting for opponent...";
+            gameStatus = 'waiting';
         }
 
         // Send move to Telegram bot
         function sendMoveToBot(fromRow, fromCol, toRow, toCol) {
             const move = `${fromRow}${fromCol}${toRow}${toCol}`;
 
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `Chess move: ${move}`,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "View move", callback_data: `chess_move_${gameId}_${move}` }]
-                        ]
-                    }
-                })
-            });
+            // In a real implementation, you'd use Telegram Bot API to send the move
+            // For this example, we'll just log it
+            console.log(`Sending move: ${move}`);
+
+            // This would be the actual API call:
+            // fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: JSON.stringify({
+            //         chat_id: playerId,
+            //         text: `/move_${gameId}_${move}`
+            //     })
+            // });
         }
 
-        // Initialize the game
-        initBoard();
+        // Handle game end
+        function endGame(winner) {
+            gameStatus = 'finished';
+            let message = "";
+
+            if (winner === currentPlayerColor) {
+                message = "🎉 You won the game! 10 points have been added to your account.";
+            } else if (winner === 'draw') {
+                message = "🤝 The game ended in a draw!";
+            } else {
+                message = "😢 You lost the game. Better luck next time!";
+            }
+
+            document.getElementById('status').textContent = message;
+
+            // Disable board
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(sq => sq.style.pointerEvents = 'none');
+        }
 
         // Button event listeners
         document.getElementById('resign-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to resign?')) {
+                // Send resignation to bot
                 fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        chat_id: chatId,
-                        text: `Chess resignation for game ${gameId}`
+                        chat_id: playerId,
+                        text: `/endgame_${gameId}_${currentPlayerColor === 'white' ? 'black' : 'white'}`
                     })
                 });
 
-                alert('You have resigned the game.');
+                endGame(currentPlayerColor === 'white' ? 'black' : 'white');
             }
         });
 
         document.getElementById('draw-btn').addEventListener('click', () => {
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `Chess draw offer for game ${gameId}`
-                })
-            });
+            if (confirm('Offer a draw to your opponent?')) {
+                fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chat_id: playerId,
+                        text: `/endgame_${gameId}_0`  // 0 means draw
+                    })
+                });
 
-            alert('Draw offer sent to your opponent.');
+                alert('Draw offer sent to your opponent.');
+            }
         });
+
+        // Initialize the game when page loads
+        initGame();
     </script>
 </body>
 </html>

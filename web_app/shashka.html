@@ -1,279 +1,594 @@
-<!doctype html>
-<html lang="uz">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Shashka (Checkers) - Flask demo</title>
-  <style>
-    :root {
-      --board-size: 480px;
-      --cell-size: calc(var(--board-size) / 8);
-    }
-    body{ font-family: system-ui, -apple-system, "Segoe UI", Roboto; display:flex; flex-direction:column; align-items:center; padding:20px;}
-    h1{margin-bottom:8px}
-    #board { width:var(--board-size); height:var(--board-size); display:grid; grid-template-columns:repeat(8,1fr); border:4px solid #333; box-shadow:0 6px 18px rgba(0,0,0,0.15); }
-    git .cell { width:100%; height:100%; box-sizing:border-box; position:relative; }
-    .cell.light { background:#f0d9b5; }
-    .cell.dark { background:#6b4f3a; }
-    .cell.highlight { outline: 4px solid rgba(255,255,0,0.6); }
-    .piece {
-      width: calc(var(--cell-size) * 0.78);
-      height: calc(var(--cell-size) * 0.78);
-      border-radius: 50%;
-      position:absolute;
-      top:50%;
-      left:50%;
-      transform:translate(-50%,-50%);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-weight:700;
-      color:white;
-      user-select:none;
-      cursor:pointer;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.25);
-    }
-    .piece.black { background:#111; }
-    .piece.white { background:#e74c3c; } /* red-ish for contrast */
-    .piece.king { box-shadow:0 0 0 4px rgba(255,255,255,0.12) inset; }
-    #info { margin-top:12px; }
-    button { margin-left:8px; padding:6px 10px; }
-    @media (max-width:520px){
-      :root{ --board-size:320px; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shashka (Russian Checkers)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .shashka-board {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-template-rows: repeat(8, 50px);
+            gap: 1px;
+            margin: 20px 0;
+            border: 2px solid #333;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .square {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .light {
+            background-color: #f0d9b5;
+        }
+
+        .dark {
+            background-color: #b58863;
+        }
+
+        .selected {
+            background-color: #7dd3fc !important;
+        }
+
+        .possible-move {
+            background-color: #86efac !important;
+        }
+
+        .capture {
+            background-color: #fca5a5 !important;
+        }
+
+        .piece {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .white-piece {
+            background-color: #fff;
+            color: #d00;
+        }
+
+        .black-piece {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .king {
+            border: 2px solid gold;
+        }
+
+        .game-info {
+            margin-bottom: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #resign-btn {
+            background-color: #f87171;
+            color: white;
+        }
+
+        #draw-btn {
+            background-color: #60a5fa;
+            color: white;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e2e8f0;
+        }
+
+        .coordinates {
+            position: absolute;
+            font-size: 10px;
+            color: rgba(0,0,0,0.5);
+        }
+
+        .top-coord {
+            top: 2px;
+            left: 2px;
+        }
+
+        .side-coord {
+            bottom: 2px;
+            right: 2px;
+        }
+    </style>
 </head>
 <body>
-  <h1>Shashka (Checkers)</h1>
-  <div id="board" role="grid" aria-label="Checkers board"></div>
+    <div class="game-info">
+        <h2>Shashka (Russian Checkers)</h2>
+        <div id="status">Loading game...</div>
+    </div>
 
-  <div id="info">
-    <span id="turn">Navbat: Oq (Red)</span>
-    <button id="reset">Qayta boshlash</button>
-    <button id="undo" disabled>Orqaga</button>
-  </div>
+    <div class="shashka-board" id="board"></div>
 
-<script>
-/*
-  Simple checkers implementation (English draughts rules approximation):
-  - 8x8 board, dark squares playable.
-  - Pieces move diagonally forward by 1; capture by jumping.
-  - Multiple captures allowed.
-  - Promotion to King when reaching far rank.
-  - No forced capture enforcement complexity omitted (we do enforce captures if available).
-*/
+    <div class="controls">
+        <button id="resign-btn">Resign</button>
+        <button id="draw-btn">Offer Draw</button>
+    </div>
 
-const BOARD_SIZE = 8;
-const boardEl = document.getElementById('board');
-const turnEl = document.getElementById('turn');
-const resetBtn = document.getElementById('reset');
-const undoBtn = document.getElementById('undo');
+    <script>
+        // Get parameters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameId = urlParams.get('game_id');
+        const playerId = urlParams.get('player_id');
 
-let state = {
-  board: [], // 8x8 array, null or {color: "white"|"black", king: bool}
-  turn: "white", // white (red visually) moves first
-  selected: null,
-  highlights: [],
-  history: []
-};
+        // Game state
+        let currentPlayerColor = null;
+        let gameStatus = 'loading';
+        let selectedPiece = null;
+        let possibleMoves = [];
+        let boardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
-function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+        // Initialize the game
+        async function initGame() {
+            document.getElementById('status').textContent = "Loading game data...";
 
-function initBoard(){
-  const b = Array.from({length:8}, ()=>Array(8).fill(null));
-  // place black (top) on rows 0..2 on dark squares, white (bottom) on rows 5..7
-  for(let r=0;r<3;r++){
-    for(let c=0;c<8;c++){
-      if((r+c)%2===1) b[r][c] = {color:"black", king:false};
-    }
-  }
-  for(let r=5;r<8;r++){
-    for(let c=0;c<8;c++){
-      if((r+c)%2===1) b[r][c] = {color:"white", king:false};
-    }
-  }
-  return b;
-}
+            try {
+                initializeBoard();
 
-function render(){
-  boardEl.innerHTML = "";
-  for(let r=0;r<8;r++){
-    for(let c=0;c<8;c++){
-      const cell = document.createElement('div');
-      cell.className = 'cell ' + (((r+c)%2) ? 'dark' : 'light');
-      cell.dataset.r = r; cell.dataset.c = c;
-      if(state.highlights.some(h => h.r===r && h.c===c)) cell.classList.add('highlight');
-      // add piece
-      const p = state.board[r][c];
-      if(p){
-        const piece = document.createElement('div');
-        piece.className = `piece ${p.color}` + (p.king ? ' king' : '');
-        piece.textContent = p.king ? '♔' : '';
-        piece.dataset.r = r; piece.dataset.c = c;
-        piece.addEventListener('click', e => { e.stopPropagation(); selectPiece(r,c); });
-        cell.appendChild(piece);
-      } else {
-        // clicking empty cell to move
-      }
-      cell.addEventListener('click', () => cellClicked(r,c));
-      boardEl.appendChild(cell);
-    }
-  }
-  turnEl.textContent = `Navbat: ${state.turn === 'white' ? 'Oq (Red)' : 'Qora'}`;
-  undoBtn.disabled = state.history.length === 0;
-}
+                // Determine player color (in a real app, this would come from the server)
+                currentPlayerColor = playerId.endsWith('1') ? 'white' : 'black';
 
-function cellClicked(r,c){
-  // If there's a selected piece and this is a highlighted move, attempt move
-  if(state.selected){
-    const found = state.highlights.find(h => h.r===r && h.c===c);
-    if(found){
-      doMove(state.selected.r, state.selected.c, r, c, found.capture);
-      return;
-    }
-  }
-  // else if clicking a piece of current player, select it
-  const p = state.board[r][c];
-  if(p && p.color === state.turn) selectPiece(r,c);
-  else { state.selected = null; state.highlights = []; render(); }
-}
+                document.getElementById('status').textContent =
+                    `You are playing as ${currentPlayerColor === 'white' ? 'white (🔴)' : 'black (⚪)'}. ${currentPlayerColor === 'white' ? 'Your turn!' : 'Waiting for opponent...'}`;
 
-function selectPiece(r,c){
-  const p = state.board[r][c];
-  if(!p || p.color !== state.turn) return;
-  state.selected = {r,c};
-  // compute legal moves (including captures)
-  const captures = findAllCapturesForPiece(r,c);
-  if(captures.length){
-    state.highlights = captures.map(m => ({r:m.to.r, c:m.to.c, capture:true, path:m}));
-  } else {
-    state.highlights = findSimpleMoves(r,c).map(m => ({r:m.to.r, c:m.to.c, capture:false}));
-  }
-  render();
-}
+                gameStatus = 'active';
 
-function findSimpleMoves(r,c){
-  const moves = [];
-  const p = state.board[r][c];
-  if(!p) return moves;
-  const dirs = p.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : (p.color==='white' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]]);
-  for(const [dr,dc] of dirs){
-    const nr = r+dr, nc = c+dc;
-    if(inBounds(nr,nc) && !state.board[nr][nc]){
-      moves.push({from:{r,c}, to:{r:nr,c:nc}});
-    }
-  }
-  return moves;
-}
+            } catch (error) {
+                document.getElementById('status').textContent = "Error loading game: " + error.message;
+                console.error(error);
+            }
+        }
 
-function findAllCapturesForPiece(r,c){
-  // returns array of {from:{}, to:{}, jumped:{r,c}, path: [...] } for multi captures we only return first jump options; extended capture handled by recursive continue after move
-  const p = state.board[r][c];
-  if(!p) return [];
-  const results = [];
-  const dirs = p.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : (p.color==='white' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]]);
-  for(const [dr,dc] of dirs){
-    const midr = r+dr, midc = c+dc;
-    const toR = r + 2*dr, toC = c + 2*dc;
-    if(inBounds(midr,midc) && inBounds(toR,toC)){
-      const mid = state.board[midr][midc];
-      if(mid && mid.color !== p.color && !state.board[toR][toC]){
-        results.push({from:{r,c}, to:{r:toR,c:toC}, jumped:{r:midr,c:midc}});
-      }
-    }
-  }
-  return results;
-}
+        // Initialize the shashka board
+        function initializeBoard() {
+            // Clear the board
+            boardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
-function anyCaptureAvailable(color){
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    const p = state.board[r][c];
-    if(p && p.color===color){
-      if(findAllCapturesForPiece(r,c).length) return true;
-    }
-  }
-  return false;
-}
+            // Set up initial pieces (Russian checkers setup)
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    // Only place pieces on dark squares
+                    if ((row + col) % 2 !== 0) {
+                        // White pieces (🔴)
+                        if (row < 3) {
+                            boardState[row][col] = { type: 'piece', color: 'white', isKing: false };
+                        }
+                        // Black pieces (⚪)
+                        else if (row > 4) {
+                            boardState[row][col] = { type: 'piece', color: 'black', isKing: false };
+                        }
+                    }
+                }
+            }
 
-function doMove(fr,fc,tr,tc,isCapture){
-  // Save history copy
-  state.history.push(JSON.stringify({board:state.board,turn:state.turn}));
-  // perform move
-  const piece = state.board[fr][fc];
-  state.board[fr][fc] = null;
-  state.board[tr][tc] = piece;
-  // if capture, remove jumped piece (compute midpoint)
-  if(isCapture){
-    const jr = (fr+tr)/2 | 0, jc = (fc+tc)/2 | 0;
-    state.board[jr][jc] = null;
-    // after capture, check if another capture for same piece exists (multi-capture)
-    const more = findAllCapturesForPiece(tr,tc);
-    if(more.length){
-      // continue with same player's turn and force continuation from this piece
-      state.selected = {r:tr,c:tc};
-      state.highlights = more.map(m => ({r:m.to.r,c:m.to.c,capture:true}));
-      render();
-      return;
-    }
-  }
-  // promotion
-  if(piece && !piece.king){
-    if((piece.color==='white' && tr===0) || (piece.color==='black' && tr===7)) piece.king = true;
-  }
-  // switch turn (but enforce forced capture: if opponent has no moves -> game over)
-  state.turn = (state.turn === 'white') ? 'black' : 'white';
-  state.selected = null;
-  state.highlights = [];
-  render();
-  // check game end
-  if(!playerHasAnyMoves(state.turn)){
-    setTimeout(()=> alert(`O'yin tugadi! G'olib: ${state.turn==='white' ? 'Qora' : 'Oq (Red)'} (qarshi tomon harakat qila olmadi)`), 80);
-  }
-}
+            renderBoard();
+        }
 
-function playerHasAnyMoves(color){
-  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-    const p = state.board[r][c];
-    if(p && p.color===color){
-      if(findAllCapturesForPiece(r,c).length) return true;
-      if(findSimpleMoves(r,c).length) return true;
-    }
-  }
-  return false;
-}
+        // Render the board
+        function renderBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
 
-resetBtn.addEventListener('click', () => {
-  state.board = initBoard();
-  state.turn = 'white';
-  state.selected = null;
-  state.highlights = [];
-  state.history = [];
-  render();
-});
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
 
-undoBtn.addEventListener('click', () => {
-  if(state.history.length){
-    const last = JSON.parse(state.history.pop());
-    state.board = last.board;
-    state.turn = last.turn;
-    state.selected = null;
-    state.highlights = [];
-    render();
-  }
-});
+                    // Add coordinates
+                    if (col === 0) {
+                        const rowCoord = document.createElement('div');
+                        rowCoord.className = 'coordinates side-coord';
+                        rowCoord.textContent = 8 - row;
+                        square.appendChild(rowCoord);
+                    }
 
-function startGame(){
-  state.board = initBoard();
-  state.turn = 'white';
-  state.selected = null;
-  state.highlights = [];
-  state.history = [];
-  render();
-}
+                    if (row === 7) {
+                        const colCoord = document.createElement('div');
+                        colCoord.className = 'coordinates top-coord';
+                        colCoord.textContent = String.fromCharCode(97 + col);
+                        square.appendChild(colCoord);
+                    }
 
-// initialize
-startGame();
+                    // Add piece if exists
+                    const piece = boardState[row][col];
+                    if (piece) {
+                        const pieceElement = document.createElement('div');
+                        pieceElement.className = `piece ${piece.color}-piece ${piece.isKing ? 'king' : ''}`;
+                        pieceElement.textContent = piece.color === 'white' ? '🔴' : '⚪';
+                        square.appendChild(pieceElement);
+                    }
 
-</script>
+                    // Add selected class
+                    if (selectedPiece && selectedPiece.row === row && selectedPiece.col === col) {
+                        square.classList.add('selected');
+                    }
+
+                    // Add possible move indicators
+                    const isPossibleMove = possibleMoves.some(move =>
+                        move.toRow === row && move.toCol === col
+                    );
+
+                    if (isPossibleMove) {
+                        const move = possibleMoves.find(m => m.toRow === row && m.toCol === col);
+                        if (move.captures && move.captures.length > 0) {
+                            square.classList.add('capture');
+                        } else {
+                            square.classList.add('possible-move');
+                        }
+                    }
+
+                    square.addEventListener('click', () => handleSquareClick(row, col));
+                    boardElement.appendChild(square);
+                }
+            }
+        }
+
+        // Handle square clicks
+        function handleSquareClick(row, col) {
+            if (gameStatus !== 'active') return;
+
+            const piece = boardState[row][col];
+
+            // If no piece is selected
+            if (!selectedPiece) {
+                if (piece && piece.color === currentPlayerColor) {
+                    selectedPiece = { row, col };
+                    calculatePossibleMoves(row, col);
+                    renderBoard();
+                }
+                return;
+            }
+
+            // If clicking the same square, deselect
+            if (selectedPiece.row === row && selectedPiece.col === col) {
+                selectedPiece = null;
+                possibleMoves = [];
+                renderBoard();
+                return;
+            }
+
+            // If clicking another piece of the same color, select it
+            if (piece && piece.color === currentPlayerColor) {
+                selectedPiece = { row, col };
+                calculatePossibleMoves(row, col);
+                renderBoard();
+                return;
+            }
+
+            // Check if this is a valid move
+            const move = possibleMoves.find(m =>
+                m.toRow === row && m.toCol === col
+            );
+
+            if (move) {
+                makeMove(selectedPiece.row, selectedPiece.col, row, col, move.captures);
+            } else {
+                selectedPiece = null;
+                possibleMoves = [];
+                renderBoard();
+            }
+        }
+
+        // Calculate possible moves for a piece
+        function calculatePossibleMoves(fromRow, fromCol) {
+            possibleMoves = [];
+            const piece = boardState[fromRow][fromCol];
+            if (!piece) return;
+
+            const direction = piece.color === 'white' ? 1 : -1;
+
+            // Regular pieces can only move forward (unless they're kings)
+            if (!piece.isKing) {
+                // Check simple moves
+                checkShashkaMove(fromRow, fromCol, fromRow + direction, fromCol - 1, piece.color, []);
+                checkShashkaMove(fromRow, fromCol, fromRow + direction, fromCol + 1, piece.color, []);
+
+                // Check captures
+                checkShashkaCapture(fromRow, fromCol, piece.color, []);
+            }
+            // Kings can move in all directions
+            else {
+                // Check all 4 diagonal directions
+                for (let rowDir of [-1, 1]) {
+                    for (let colDir of [-1, 1]) {
+                        checkShashkaMove(fromRow, fromCol, fromRow + rowDir, fromCol + colDir, piece.color, []);
+                        checkShashkaCaptureKing(fromRow, fromCol, rowDir, colDir, piece.color, []);
+                    }
+                }
+            }
+        }
+
+        // Check if a simple move is possible
+        function checkShashkaMove(fromRow, fromCol, toRow, toCol, color, captures) {
+            // Check if move is within board bounds
+            if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+
+            // Check if target square is empty and on a dark square
+            if (boardState[toRow][toCol] || (toRow + toCol) % 2 === 0) return false;
+
+            // For non-capturing moves, only allow if no captures are available
+            if (captures.length === 0) {
+                possibleMoves.push({
+                    fromRow, fromCol, toRow, toCol, captures
+                });
+                return true;
+            }
+
+            return false;
+        }
+
+        // Check for possible captures (for regular pieces)
+        function checkShashkaCapture(fromRow, fromCol, color, visited) {
+            let foundCapture = false;
+            const directions = [
+                {row: 1, col: -1},  // down-left
+                {row: 1, col: 1},    // down-right
+                {row: -1, col: -1},  // up-left
+                {row: -1, col: 1}    // up-right
+            ];
+
+            for (const dir of directions) {
+                const jumpRow = fromRow + dir.row;
+                const jumpCol = fromCol + dir.col;
+                const landRow = fromRow + 2 * dir.row;
+                const landCol = fromCol + 2 * dir.col;
+
+                // Check if jump is within bounds
+                if (landRow < 0 || landRow > 7 || landCol < 0 || landCol > 7) continue;
+
+                // Check if landing square is empty and dark
+                if (boardState[landRow][landCol] || (landRow + landCol) % 2 === 0) continue;
+
+                // Check if there's an opponent piece to jump over
+                const jumpedPiece = boardState[jumpRow][jumpCol];
+                if (!jumpedPiece || jumpedPiece.color === color) continue;
+
+                // Check if we've already captured this piece
+                if (visited.some(pos => pos.row === jumpRow && pos.col === jumpCol)) continue;
+
+                // This is a valid capture
+                const newVisited = [...visited, {row: jumpRow, col: jumpCol}];
+
+                // Check for multi-captures
+                const hasFurtherCaptures = checkShashkaCapture(landRow, landCol, color, newVisited);
+
+                if (!hasFurtherCaptures) {
+                    possibleMoves.push({
+                        fromRow, fromCol,
+                        toRow: landRow, toCol: landCol,
+                        captures: newVisited
+                    });
+                }
+
+                foundCapture = true;
+            }
+
+            return foundCapture;
+        }
+
+        // Check for possible captures (for kings)
+        function checkShashkaCaptureKing(fromRow, fromCol, rowDir, colDir, color, visited) {
+            let foundCapture = false;
+            let jumpedPiecePos = null;
+
+            // Look along the diagonal for opponent pieces
+            for (let distance = 1; distance < 8; distance++) {
+                const checkRow = fromRow + distance * rowDir;
+                const checkCol = fromCol + distance * colDir;
+
+                // Stop if we go out of bounds
+                if (checkRow < 0 || checkRow > 7 || checkCol < 0 || checkCol > 7) break;
+
+                // Skip light squares
+                if ((checkRow + checkCol) % 2 === 0) continue;
+
+                const piece = boardState[checkRow][checkCol];
+
+                // If we find an empty square after a capture opportunity
+                if (!piece && jumpedPiecePos) {
+                    // Check if we've already captured this piece
+                    if (visited.some(pos => pos.row === jumpedPiecePos.row && pos.col === jumpedPiecePos.col)) {
+                        break;
+                    }
+
+                    const newVisited = [...visited, jumpedPiecePos];
+
+                    // Check for multi-captures
+                    const hasFurtherCaptures = checkShashkaCaptureKing(
+                        checkRow, checkCol, rowDir, colDir, color, newVisited
+                    );
+
+                    if (!hasFurtherCaptures) {
+                        possibleMoves.push({
+                            fromRow, fromCol,
+                            toRow: checkRow, toCol: checkCol,
+                            captures: newVisited
+                        });
+                    }
+
+                    foundCapture = true;
+                    break;
+                }
+
+                // If we find our own piece, stop looking in this direction
+                if (piece && piece.color === color) {
+                    break;
+                }
+
+                // If we find an opponent piece, remember its position
+                if (piece && piece.color !== color && !jumpedPiecePos) {
+                    jumpedPiecePos = {row: checkRow, col: checkCol};
+                }
+                // If we find a second opponent piece, stop looking
+                else if (piece && piece.color !== color && jumpedPiecePos) {
+                    break;
+                }
+            }
+
+            return foundCapture;
+        }
+
+        // Make a move
+        function makeMove(fromRow, fromCol, toRow, toCol, captures) {
+            // Send move to bot
+            sendMoveToBot(fromRow, fromCol, toRow, toCol, captures);
+
+            // Update local board
+            const piece = boardState[fromRow][fromCol];
+            boardState[fromRow][fromCol] = null;
+            boardState[toRow][toCol] = piece;
+
+            // Remove captured pieces
+            if (captures && captures.length > 0) {
+                for (const capture of captures) {
+                    boardState[capture.row][capture.col] = null;
+                }
+            }
+
+            // Check for promotion to king
+            if (!piece.isKing) {
+                if ((piece.color === 'white' && toRow === 7) ||
+                    (piece.color === 'black' && toRow === 0)) {
+                    piece.isKing = true;
+                }
+            }
+
+            selectedPiece = null;
+            possibleMoves = [];
+            renderBoard();
+
+            document.getElementById('status').textContent = "Move sent! Waiting for opponent...";
+            gameStatus = 'waiting';
+        }
+
+        // Send move to Telegram bot
+        function sendMoveToBot(fromRow, fromCol, toRow, toCol, captures) {
+            let moveNotation = `${String.fromCharCode(97 + fromCol)}${8 - fromRow}-${String.fromCharCode(97 + toCol)}${8 - toRow}`;
+
+            if (captures && captures.length > 0) {
+                moveNotation = `${String.fromCharCode(97 + fromCol)}${8 - fromRow}x${String.fromCharCode(97 + toCol)}${8 - toRow}`;
+            }
+
+            // In a real implementation, you'd use Telegram Bot API to send the move
+            console.log(`Sending shashka move: ${moveNotation}`);
+
+            // This would be the actual API call:
+            // fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: JSON.stringify({
+            //         chat_id: playerId,
+            //         text: `/shashka_move_${gameId}_${fromRow}${fromCol}${toRow}${toCol}`
+            //     })
+            // });
+        }
+
+        // Handle game end
+        function endGame(winner) {
+            gameStatus = 'finished';
+            let message = "";
+
+            if (winner === currentPlayerColor) {
+                message = "🎉 You won the game! 10 points have been added to your account.";
+            } else if (winner === 'draw') {
+                message = "🤝 The game ended in a draw!";
+            } else {
+                message = "😢 You lost the game. Better luck next time!";
+            }
+
+            document.getElementById('status').textContent = message;
+
+            // Disable board
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(sq => sq.style.pointerEvents = 'none');
+        }
+
+        // Button event listeners
+        document.getElementById('resign-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to resign?')) {
+                // Send resignation to bot
+                fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chat_id: playerId,
+                        text: `/shashka_end_${gameId}_${currentPlayerColor === 'white' ? 'black' : 'white'}`
+                    })
+                });
+
+                endGame(currentPlayerColor === 'white' ? 'black' : 'white');
+            }
+        });
+
+        document.getElementById('draw-btn').addEventListener('click', () => {
+            if (confirm('Offer a draw to your opponent?')) {
+                fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chat_id: playerId,
+                        text: `/shashka_end_${gameId}_0`  // 0 means draw
+                    })
+                });
+
+                alert('Draw offer sent to your opponent.');
+            }
+        });
+
+        // Initialize the game when page loads
+        initGame();
+    </script>
 </body>
 </html>

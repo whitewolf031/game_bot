@@ -1,5 +1,4 @@
 from datetime import datetime, date
-
 import psycopg2
 
 class User_info:
@@ -11,9 +10,10 @@ class User_info:
             database="choice_info"
         )
         self.cursor = self.connect.cursor()
-        self.create_user_table()
+        self.create_tables()
 
-    def create_user_table(self):
+    def create_tables(self):
+        # Users table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -24,59 +24,131 @@ class User_info:
                 is_admin BOOLEAN DEFAULT FALSE,
                 referred_by BIGINT
             );
-            """)
+        """)
 
-        self.connect.commit()
-        print("Table created")
-
-    def insert_into_users(self, chat_id, username, points, last_daily, is_admin):
+        # Chess games table
         self.cursor.execute("""
-            INSERT INTO users (chat_id, username, points, last_daily, is_admin)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (chat_id, username, points, last_daily, is_admin))
+            CREATE TABLE IF NOT EXISTS chess_games (
+                id SERIAL PRIMARY KEY,
+                game_id TEXT NOT NULL UNIQUE,
+                player1_id BIGINT NOT NULL,
+                player2_id BIGINT,
+                player1_color TEXT NOT NULL,
+                player2_color TEXT,
+                moves TEXT[],
+                winner_id BIGINT,
+                status TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                finished_at TIMESTAMP
+            );
+        """)
+
         self.connect.commit()
+        print("Tables created")
 
     def insert_or_update_user_daily(self, chat_id, username, is_admin=False):
-        self.cursor.execute("SELECT points, last_daily FROM users WHERE chat_id = %s", (chat_id,))
-        result = self.cursor.fetchone()
-
-        if result:
-            points, last_daily = result
-            # Har kuni bir martalik ball
-            if last_daily is None or last_daily.date() < date.today():
-                points += 1
-                self.cursor.execute("""
-                    UPDATE users 
-                    SET points = %s, last_daily = %s, username = %s
-                    WHERE chat_id = %s
-                """, (points, datetime.now(), username, chat_id))
-            is_new = False
-        else:
-            self.cursor.execute("""
-                INSERT INTO users (chat_id, username, points, last_daily, is_admin)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (chat_id, username, 1, datetime.now(), is_admin))
-            is_new = True
-
-        self.connect.commit()
-        return is_new
+        # ... (keep your existing implementation)
+        pass
 
     def select_info(self, chat_id):
-        self.cursor.execute("""
-            SELECT id, username, points, last_daily, is_admin
-            FROM users
-            WHERE chat_id = %s
-        """, (chat_id,))
-        print("Ma'lumot olindi")
-        return self.cursor.fetchall()
+        # ... (keep your existing implementation)
+        pass
 
-    def add_points_to_user(self, user_id, bonus=10):
+    def add_points_to_user(self, user_id, points):
         self.cursor.execute("""
             UPDATE users
             SET points = points + %s
             WHERE chat_id = %s
-        """, (bonus, user_id))
+            RETURNING points
+        """, (points, user_id))
+        new_points = self.cursor.fetchone()[0]
+        self.connect.commit()
+        return new_points
+
+    def create_chess_game(self, game_id, player1_id, player1_color='white'):
+        self.cursor.execute("""
+            INSERT INTO chess_games (game_id, player1_id, player1_color, status, created_at)
+            VALUES (%s, %s, %s, 'waiting', %s)
+        """, (game_id, player1_id, player1_color, datetime.now()))
         self.connect.commit()
 
+    def join_chess_game(self, game_id, player2_id):
+        self.cursor.execute("""
+            UPDATE chess_games
+            SET player2_id = %s,
+                player2_color = CASE WHEN player1_color = 'white' THEN 'black' ELSE 'white' END,
+                status = 'active'
+            WHERE game_id = %s
+        """, (player2_id, game_id))
+        self.connect.commit()
 
-User = User_info()
+    def record_chess_move(self, game_id, move):
+        self.cursor.execute("""
+            UPDATE chess_games
+            SET moves = array_append(moves, %s)
+            WHERE game_id = %s
+        """, (move, game_id))
+        self.connect.commit()
+
+    def end_chess_game(self, game_id, winner_id):
+        self.cursor.execute("""
+            UPDATE chess_games
+            SET winner_id = %s,
+                status = 'finished',
+                finished_at = %s
+            WHERE game_id = %s
+        """, (winner_id, datetime.now(), game_id))
+        self.connect.commit()
+
+    def get_user_games(self, user_id):
+        self.cursor.execute("""
+            SELECT game_id, player1_id, player2_id, status, winner_id, created_at
+            FROM chess_games
+            WHERE player1_id = %s OR player2_id = %s
+            ORDER BY created_at DESC
+        """, (user_id, user_id))
+        return self.cursor.fetchall()
+
+    def create_shashka_game(self, game_id, player1_id, player1_color='white'):
+        self.cursor.execute("""
+            INSERT INTO shashka_games (game_id, player1_id, player1_color, status, created_at)
+            VALUES (%s, %s, %s, 'waiting', %s)
+        """, (game_id, player1_id, player1_color, datetime.now()))
+        self.connect.commit()
+
+    def join_shashka_game(self, game_id, player2_id):
+        self.cursor.execute("""
+            UPDATE shashka_games
+            SET player2_id = %s,
+                player2_color = CASE WHEN player1_color = 'white' THEN 'black' ELSE 'white' END,
+                status = 'active'
+            WHERE game_id = %s
+        """, (player2_id, game_id))
+        self.connect.commit()
+
+    def record_shashka_move(self, game_id, move):
+        self.cursor.execute("""
+            UPDATE shashka_games
+            SET moves = array_append(moves, %s)
+            WHERE game_id = %s
+        """, (move, game_id))
+        self.connect.commit()
+
+    def end_shashka_game(self, game_id, winner_id):
+        self.cursor.execute("""
+            UPDATE shashka_games
+            SET winner_id = %s,
+                status = 'finished',
+                finished_at = %s
+            WHERE game_id = %s
+        """, (winner_id, datetime.now(), game_id))
+        self.connect.commit()
+
+    def get_user_shashka_games(self, user_id):
+        self.cursor.execute("""
+            SELECT game_id, player1_id, player2_id, status, winner_id, created_at
+            FROM shashka_games
+            WHERE player1_id = %s OR player2_id = %s
+            ORDER BY created_at DESC
+        """, (user_id, user_id))
+        return self.cursor.fetchall()
