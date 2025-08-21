@@ -109,8 +109,12 @@ def main_menu(message):
     elif message.text == "Do'stlarni taklif qilish":
         bot.send_message(chat_id, invite_text)
 
+
     elif message.text == "Shartlar":
-        bot.send_message(chat_id, "Shartlarni bajaring va ball oling")
+        bot.send_message(chat_id, "📌 Eslatma: \n"
+        "Bu botga hozircha shartlar qo‘shilmagan \n"
+        "✅ Shartlar qo‘shilgandan so‘ng, admin tomonidan xabar beriladi")
+
 
     elif message.text == "Ma'lumotlarni ko'rish":
         show_user_info(message)
