@@ -10,8 +10,8 @@ load_dotenv()
 
 token = os.getenv('TOKEN')
 bot = TeleBot(token)
-ADMIN_ID = os.getenv("ADMIN_ID")
-group_username = '@codecraftdevelop'
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+group_username = '@omegajon'
 db = User_info()
 
 # Chess game states
@@ -23,6 +23,37 @@ chess_webapp_url = "https://whitewolf031.github.io/game_bot/web_app/chess.html"
 shashka_games = {}  # Format: {game_id: {'player1': user_id, 'player2': user_id, 'current_player': 'white', 'player1_color': 'white', 'player2_color': 'black', 'status': 'waiting'/'active'/'finished', 'winner': None}}
 shashka_active_players = {}  # {user_id: game_id}
 shashka_webapp_url = "https://whitewolf031.github.io/game_bot/web_app/shashka.html"
+
+@bot.message_handler(func=lambda message: True)
+def testing(message):
+    if message.text == '/start':
+        return start(message)
+
+    if message.text == '/admin':
+        return admin_panel(message)
+
+# 📌 Foydalanuvchi admin ekanligini tekshirish
+def is_admin(user_id):
+    return user_id == ADMIN_ID
+
+# 📌 Adminlarni ko‘rish
+@bot.message_handler(commands=["admin"])
+def admin_panel(message):
+    chat_id = message.chat.id
+    if is_admin(chat_id):
+        bot.send_message(chat_id, "Admin panelga xush kelibsiz!", reply_markup=admin_panel_markup())
+        bot.register_next_step_handler(message, handle_admin_panel)
+    else:
+        bot.send_message(chat_id, "⛔ Siz admin emassiz!")
+
+# 📌 Admin panel ishlashi
+@bot.message_handler(func =lambda message: is_admin(message.chat.id))
+def handle_admin_panel(message):
+    chat_id = message.chat.id
+
+    if message.text == "Test qo'shish":
+        bot.send_message(chat_id, "Test fanini tanlang")
+
 
 @bot.message_handler(commands=['start'])
 def start(message):
