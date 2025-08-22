@@ -1,0 +1,32 @@
+[
+    {
+        "question": "x = 7 + 3 * 2 ifodaning qiymati nechiga teng?",
+        "options": [
+            "20",
+            "13",
+            "17"
+        ],
+        "correct_answer": 1,
+        "explanation": "✅ Javob: B (Arifmetik amallar tartibi: ko'paytirish qo'shishdan oldin, shuning uchun 3*2=6, keyin 7+6=13)"
+    },
+    {
+        "question": "Python qaysi dasturlash tiliga kiradi?",
+        "options": [
+            "Compiled",
+            "Interpreted",
+            "Machine"
+        ],
+        "correct_answer": 1,
+        "explanation": "✅ Javob: B (Python interpreted til hisoblanadi)"
+    },
+    {
+        "question": "Quyidagilardan qaysi biri ma'lumotlar strukturasi emas?",
+        "options": [
+            "Array",
+            "Function",
+            "Linked List"
+        ],
+        "correct_answer": 1,
+        "explanation": "✅ Javob: B (Function ma'lumotlar strukturasi emas, balki dasturlash elementi)"
+    }
+]
