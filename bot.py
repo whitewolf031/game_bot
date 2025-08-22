@@ -92,10 +92,6 @@ def save_test_questions():
 # --- TEST boshqaruvi ---
 @bot.message_handler(func=lambda msg: msg.text == "Test yechish")
 def start_test(message):
-    """
-    Foydalanuvchini juftlik navbatiga qo‘shadi va 2 kishi to‘lganda testni boshlaydi.
-    Har savol uchun 30s taymer ishlaydi. Faqat tugma bosilganida yoki vaqt tugaganda keyingi savolga o'tadi.
-    """
     chat_id = message.chat.id
 
     if not test_questions:
@@ -103,44 +99,35 @@ def start_test(message):
         return
 
     if chat_id in test_waiting_users:
-        bot.send_message(chat_id, "⏳ Siz allaqachon juftlik navbatidasiz. Iltimos, biroz kuting.")
+        bot.send_message(chat_id, "⏳ Siz allaqachon juftlik navbatidasiz. Iltimos, kuting.")
         return
 
     test_waiting_users.append(chat_id)
-    bot.send_message(chat_id, "⏳ Juftlik kutyapsiz. Boshqa foydalanuvchi qo'shilishini kuting.")
+    bot.send_message(chat_id, "⏳ Juftlik kutyapsiz...")
 
-    # 2 ta foydalanuvchi to‘planganda testni boshlaymiz
     if len(test_waiting_users) >= 2:
         user1_id = test_waiting_users.pop(0)
         user2_id = test_waiting_users.pop(0)
 
-        # Savollar tartibi (shuffle)
-        question_order = list(range(len(test_questions)))
-        random.shuffle(question_order)
+        order = list(range(len(test_questions)))
+        random.shuffle(order)
 
         test_id = f"test_{user1_id}_{user2_id}_{int(time.time())}"
         active_tests[test_id] = {
             "players": [user1_id, user2_id],
             "scores": {user1_id: 0, user2_id: 0},
-            "current_question": 0,                          # index in order
+            "current_question": 0,
             "answers": {user1_id: None, user2_id: None},
-            "start_time": time.time(),
-            "question_start_time": None,
-            "order": question_order,                        # savollar ketma-ketligi
+            "order": order,
         }
 
-        # Har ikkala o‘yinchiga test boshlandi deb yozamiz
         for uid in (user1_id, user2_id):
-            try:
-                bot.send_message(uid, "🧠 Test boshlandi! Har bir savolga javob berish uchun 30 soniya vaqt beriladi.")
-            except Exception as e:
-                print(f"Start test notice error (uid={uid}): {e}")
+            bot.send_message(uid, "🧠 Test boshlandi! Sizga savollar yuboriladi.")
 
         send_test_question(test_id)
 
 
 def send_test_question(test_id):
-    """Joriy savolni har ikki o‘yinchiga yuboradi va 30s taymerni ishga tushiradi."""
     if test_id not in active_tests:
         return
 
@@ -148,7 +135,6 @@ def send_test_question(test_id):
     order = test["order"]
     q_idx = test["current_question"]
 
-    # Test tugash sharti
     if q_idx >= len(order):
         finish_test(test_id)
         return
@@ -156,7 +142,6 @@ def send_test_question(test_id):
     question_data = test_questions[order[q_idx]]
     test["question_start_time"] = time.time()
 
-    # Varianti tugmalari
     markup = types.InlineKeyboardMarkup()
     label_map = ['A', 'B', 'C', 'D', 'E']
     options = question_data.get("options", [])[:5]
@@ -164,31 +149,26 @@ def send_test_question(test_id):
         markup.add(
             types.InlineKeyboardButton(
                 f"{label_map[i]}) {option_text}",
-                callback_data=f"test_answer_{test_id}_{i}"
+                callback_data=f"ans:{test_id}:{i}"
             )
         )
 
-    # Savol matni
     text = (
         f"Savol {q_idx + 1}/{len(order)}:\n"
         f"{question_data.get('question', 'Savol topilmadi')}\n\n"
-        f"⏳ Javob berish uchun {int(TEST_TIME_LIMIT)} soniya vaqtingiz bor!"
+        f"⏳ Javob berish uchun {TEST_TIME_LIMIT} soniya vaqtingiz bor!"
     )
 
-    # Har bir o'yinchi uchun savol yuborish
     for uid in test["players"]:
         try:
             bot.send_message(uid, text, reply_markup=markup)
         except Exception as e:
             print(f"Savol yuborishda xatolik (uid={uid}): {e}")
 
-    # Yangi taymer
     start_test_timer(test_id)
 
 
 def start_test_timer(test_id):
-    """30 soniyalik taymerni ishga tushiradi. Avvalgi taymer bo‘lsa bekor qiladi."""
-    # Eski taymer bo‘lsa o‘chirib tashlaymiz
     old = test_timers.get(test_id)
     if old:
         try:
@@ -202,7 +182,6 @@ def start_test_timer(test_id):
 
 
 def handle_timeout(test_id):
-    """Vaqt tugaganda javob bermaganlarga xabar yuboradi va javoblarni tekshiradi."""
     if test_id not in active_tests:
         return
 
@@ -216,7 +195,6 @@ def handle_timeout(test_id):
             except Exception as e:
                 print(f"Timeout xabarida xatolik (uid={uid}): {e}")
 
-        # Taymer obyektini tozalaymiz
         t = test_timers.get(test_id)
         if t:
             try:
@@ -226,16 +204,14 @@ def handle_timeout(test_id):
             finally:
                 test_timers.pop(test_id, None)
 
-        # Javoblarni tekshiraman (kimdir javob bergan bo‘lishi mumkin)
         check_test_answers(test_id)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('test_answer_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('ans:'))
 def handle_test_answer(call):
-    """Foydalanuvchi javobini qabul qilish; ikkala kishi javob berganda tekshiradi."""
     user_id = call.from_user.id
     try:
-        _, _, test_id, idx_str = call.data.split('_', 3)
+        _, test_id, idx_str = call.data.split(":")
         answer_index = int(idx_str)
     except Exception:
         bot.answer_callback_query(call.id, "❌ Xato format.")
@@ -250,16 +226,13 @@ def handle_test_answer(call):
         bot.answer_callback_query(call.id, "Siz bu testda ishtirok etmaysiz.")
         return
 
-    # Allaqachon javob berganmi?
     if test["answers"][user_id] is not None:
         bot.answer_callback_query(call.id, "Siz allaqachon javob berdingiz!")
         return
 
-    # Javobni saqlaymiz
     test["answers"][user_id] = answer_index
-    bot.answer_callback_query(call.id, "Javobingiz qabul qilindi!")
+    bot.answer_callback_query(call.id, "✅ Javobingiz qabul qilindi!")
 
-    # Agar ikkala foydalanuvchi ham javob bergan bo'lsa – taymerni bekor qilib, tekshiramiz
     if all(ans is not None for ans in test["answers"].values()):
         t = test_timers.get(test_id)
         if t:
@@ -273,7 +246,6 @@ def handle_test_answer(call):
 
 
 def check_test_answers(test_id):
-    """Joriy savol bo‘yicha to‘g‘ri javobni e’lon qiladi, ballarni yangilaydi va keyingi savolni rejalashtiradi."""
     if test_id not in active_tests:
         return
 
@@ -281,21 +253,17 @@ def check_test_answers(test_id):
     order = test["order"]
     q_idx = test["current_question"]
 
-    # Tugash tekshiruvi
     if q_idx >= len(order):
         finish_test(test_id)
         return
 
-    # Joriy savol
     question_data = test_questions[order[q_idx]]
-    correct_answer = int(question_data["correct_answer"])  # indeks
+    correct_answer = int(question_data["correct_answer"])
 
-    # Ballarni hisoblash
     for uid, ans in test["answers"].items():
         if ans == correct_answer:
             test["scores"][uid] += 1
 
-    # To'g'ri javob va tushuntirishni yuborish
     label_map = ['A', 'B', 'C', 'D', 'E']
     correct_label = label_map[correct_answer] if 0 <= correct_answer < len(label_map) else "?"
     explanation = question_data.get('explanation', '')
@@ -305,16 +273,13 @@ def check_test_answers(test_id):
         except Exception as e:
             print(f"Javob yuborishda xatolik (uid={uid}): {e}")
 
-    # Keyingi savolga tayyorgarlik
     test["current_question"] += 1
     test["answers"] = {uid: None for uid in test["players"]}
 
-    # 2 soniyadan keyin keyingi savolni yuboramiz (bloklamasdan)
     threading.Timer(AFTER_EXPLANATION_DELAY, send_test_question, args=[test_id]).start()
 
 
 def finish_test(test_id):
-    """Test yakuni: g‘olibni aniqlash, ball berish/ayirish, xabar yuborish va tozalash."""
     if test_id not in active_tests:
         return
 
@@ -323,7 +288,6 @@ def finish_test(test_id):
     score1 = test["scores"][user1_id]
     score2 = test["scores"][user2_id]
 
-    # Taymer bo‘lsa o‘chirib tashlaymiz
     t = test_timers.get(test_id)
     if t:
         try:
@@ -333,41 +297,23 @@ def finish_test(test_id):
         finally:
             test_timers.pop(test_id, None)
 
-    # Ballarni yangilash (g‘olibga +10, yutqazganga -10)
     if score1 > score2:
-        try:
-            db.add_points_to_user(user1_id, 10)
-            db.add_points_to_user(user2_id, -10)
-        except Exception as e:
-            print(f"DB points error: {e}")
+        result_text1 = f"🎉 Tabriklaymiz! Siz yutdingiz!\nSiz: {score1} ball\nRaqibingiz: {score2} ball"
+        result_text2 = f"😞 Siz yutqazdingiz.\nSiz: {score2} ball\nRaqibingiz: {score1} ball"
     elif score2 > score1:
-        try:
-            db.add_points_to_user(user1_id, -10)
-            db.add_points_to_user(user2_id, 10)
-        except Exception as e:
-            print(f"DB points error: {e}")
-
-    # Natija matnlari
-    if score1 > score2:
-        result_text1 = f"🎉 Tabriklaymiz! Siz yutdingiz!\nSiz: {score1} ball\nRaqibingiz: {score2} ball\n+10 ball"
-        result_text2 = f"😞 Siz yutqazdingiz.\nSiz: {score2} ball\nRaqibingiz: {score1} ball\n-10 ball"
-    elif score2 > score1:
-        result_text1 = f"😞 Siz yutqazdingiz.\nSiz: {score1} ball\nRaqibingiz: {score2} ball\n-10 ball"
-        result_text2 = f"🎉 Tabriklaymiz! Siz yutdingiz!\nSiz: {score2} ball\nRaqibingiz: {score1} ball\n+10 ball"
+        result_text1 = f"😞 Siz yutqazdingiz.\nSiz: {score1} ball\nRaqibingiz: {score2} ball"
+        result_text2 = f"🎉 Tabriklaymiz! Siz yutdingiz!\nSiz: {score2} ball\nRaqibingiz: {score1} ball"
     else:
-        result_text1 = f"🤝 Durrang!\nSiz: {score1} ball\nRaqibingiz: {score2} ball\nHech qanday o'zgarishsiz"
+        result_text1 = f"🤝 Durrang!\nSiz: {score1} ball\nRaqibingiz: {score2} ball"
         result_text2 = result_text1
 
-    # Natijalarni yuborish
     try:
         bot.send_message(user1_id, result_text1)
         bot.send_message(user2_id, result_text2)
     except Exception as e:
         print(f"Natija yuborishda xatolik: {e}")
 
-    # Tozalash
     active_tests.pop(test_id, None)
-
 
 # --- Admin uchun test savollarini boshqarish ---
 @bot.message_handler(func=lambda msg: msg.text == "Test savollari" and str(msg.from_user.id) == str(ADMIN_ID))
