@@ -22,7 +22,6 @@ db = User_info()
 chess_webapp_url = "https://whitewolf031.github.io/game_bot/web_app/chess.html"
 shashka_webapp_url = "https://whitewolf031.github.io/game_bot/web_app/shashka.html"
 
-
 # WebApp-ga havola yaratish funksiyasi
 def create_webapp_button(game_id, player_id, game_type):
     if game_type == "chess":
@@ -413,6 +412,36 @@ def list_test_questions(message):
 
 
 # ====== START / LANGUAGE / MENU ======
+@bot.message_handler(func=lambda message: True)
+def testing(message):
+    if message.text == '/start':
+        return start(message)
+
+    if message.text == '/admin':
+        return admin_panel(message)
+
+# 📌 Foydalanuvchi admin ekanligini tekshirish
+def is_admin(user_id):
+    return user_id == ADMIN_ID
+
+# 📌 Adminlarni ko‘rish
+@bot.message_handler(commands=["admin"])
+def admin_panel(message):
+    chat_id = message.chat.id
+    if is_admin(chat_id):
+        bot.send_message(chat_id, "Admin panelga xush kelibsiz!", reply_markup=admin_panel_markup())
+        bot.register_next_step_handler(message, handle_admin_panel)
+    else:
+        bot.send_message(chat_id, "⛔ Siz admin emassiz!")
+
+# 📌 Admin panel ishlashi
+@bot.message_handler(func =lambda message: is_admin(message.chat.id))
+def handle_admin_panel(message):
+    chat_id = message.chat.id
+
+    if message.text == "Test qo'shish":
+        bot.send_message(chat_id, "Test fanini tanlang")
+
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.from_user.id
@@ -502,7 +531,9 @@ def main_menu(message):
     )
 
     if message.text == "Kunlik bal":
-        bot.send_message(chat_id, "Kunlik balingizni olib bo'ldingiz")
+        bot.send_message(chat_id, "✨ Assalomu alaykum, {username}!\n\n"
+        "🎯 Siz bugungi <b>kunlik balingizni</b> oldingiz ✅\n"
+        "😊 Omad va yaxshi kayfiyat tilaymiz!")
 
     elif message.text == "O'yinlar":
         bot.send_message(chat_id, "O'yin tanlang", reply_markup=games())
