@@ -1,6 +1,6 @@
 from telebot import types
 
-Group_url = 'https://t.me/codecraftdevelop'
+Group_url = 'https://t.me/omegajon'
 
 
 def generate_language():
@@ -25,7 +25,7 @@ def menu_keyboards():
     btn_game = types.KeyboardButton("O'yinlar")
     btn_offer = types.KeyboardButton("Do'stlarni taklif qilish")
     btn_conditions = types.KeyboardButton("Shartlar")
-    btn_check = types.KeyboardButton("Ma'lumotlarni ko‘rish")
+    btn_check = types.KeyboardButton("Ma'lumotlarni ko'rish")
     btn_darajalar = types.KeyboardButton("Darajalar")
     btn_back = types.KeyboardButton("Orqaga")
 
@@ -43,4 +43,10 @@ def games():
     btn_back = types.KeyboardButton("Orqaga")
     keyboard.row(btn_chess, btn_shashka)
     keyboard.row(btn_back)
+    return keyboard
+
+def admin_panel_markup():
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn_panel = types.KeyboardButton("Test qo'shish")
+    keyboard.row(btn_panel)
     return keyboard

@@ -1,13 +1,16 @@
 from datetime import datetime, date
 import psycopg2
+from config import Config
+
+cfg = Config()
 
 class User_info:
     def __init__(self):
         self.connect = psycopg2.connect(
-            host="localhost",
-            user="postgres",
-            password="123456",
-            database="choice_info"
+            host=cfg.host,
+            user=cfg.user,
+            database=cfg.db,
+            password=cfg.password
         )
         self.cursor = self.connect.cursor()
         self.create_tables()
